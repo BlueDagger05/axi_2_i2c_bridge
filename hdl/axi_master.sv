@@ -12,10 +12,10 @@ module axi_master (
     input wire ARESETn,
 
 	// write requeset channel signals
-	input    wire                   AWREADY,
-	output  logic                   AWVALID,
+	input    wire                    AWREADY,
+	output  logic                    AWVALID,
 	output  logic [`ADDR_WIDTH -1:0] AWADDR,
-	output  logic [`SIZE -1:0] 	    AWSIZE,
+	output  logic [`SIZE -1:0] 	     AWSIZE,
 	output  logic [`BURST_SIZE -1:0] AWBURST,
 
 	// write data channel signals
@@ -25,23 +25,33 @@ module axi_master (
 	output  logic [`WDATA_WIDTH -1:0] WDATA,
 
 	// write response channel signals
-	 input wire  [`RESPONSE_WIDTH -1:0] BRESP,
+    input wire  [`RESPONSE_WIDTH -1:0] BRESP,
 	input  wire                        BVALID,
 	output logic                       BREADY
 );
 //////////////////////////////////////
 // .......temporary variables.........
 //////////////////////////////////////
+
+// sync reset
+reg SYN_ARESETn;
+
+// temporary clk
+wire temp_ACLK;
+
+assign temp_ACLK = ACLK;
+
+// present state and next state registers
 reg [2:0] present_state, next_state;
 
 // variable for ALL_VALID state
-bit all_valid_returns;
+reg all_valid_returns;
 
 // variable for WRITE_DATA state
-bit [7:0] is_last;
+reg [7:0] is_last;
 
 // variable for WRITE_DATA state
-bit [`WDATA_WIDTH-1:0] WDATA_temp;
+reg [`WDATA_WIDTH-1:0] WDATA_temp;
 
 // enums
 e_resp st;
@@ -53,11 +63,20 @@ parameter WRITE_DATA = 5'b00100;
 parameter WRITE_RESP = 5'b01000;
 parameter ALL_VALID  = 5'b10000;
 
+// aynschronous reset and synchronous de-assertion
+reg resetOut;
+    
+always @(posedge ACLK, negedge ARESETn)
+begin
+    if(!ARESETn)    {resetOut, SYN_ARESETn} <= 'b0;
+    else            {SYN_ARESETn,resetOut}  <= {resetOut,1'b1};
+end    
+
 // state register 
-always_ff @(posedge ACLK or negedge ARESETn)
+always_ff @(posedge ACLK or negedge SYN_ARESETn)
 begin : response_proc
 
-	if(~ARESETn)
+	if(~SYN_ARESETn)
 	begin : reset_proc
 		// settting response, data and response 
 		// channel valid and ready signal to LOW
@@ -77,12 +96,12 @@ end : response_proc
 
 
 // next state logic
-always_comb 
+always @(*)
 begin : next_state_proc
 	case(present_state)
 		IDLE: 
 		begin : idle_state_proc
-			if(~ARESETn)
+			if(~SYN_ARESETn)
 			begin
 				next_state = IDLE;
 			end
@@ -144,7 +163,7 @@ begin : next_state_proc
 		WRITE_RESP:
 		begin : write_resp_proc
 
-			if(BRESP == st.OKAY && BVALID)
+			if(BRESP == OKAY && BVALID)
 			begin
 				// transiting to WRITE_DATA state,
 				// after completion of transfer
@@ -162,8 +181,8 @@ begin : next_state_proc
 		begin : all_valid_proc
 			// all valid and response condtions met
 			// transit to write_resp state
-            if(BRESP == st.OKAY && BVALID)
-                 next_state = WRITE_RESP;
+            if(BRESP == OKAY && BVALID)
+                 next_state = ALL_VALID;
                  
             else 
                  next_state = IDLE;
@@ -190,7 +209,7 @@ begin : output_logic_proc
 			{BREADY, AWVALID, WVALID} = 3'b0;
             
             // sending stream of zeroe's when IDLE
-			WDATA_temp = 32'b0000_0000_0000_0000;
+//			WDATA_temp = 32'b0000_0000_0000_0000;
 
 			// resetting the count value
 			is_last = 8'b000_00000;
@@ -217,11 +236,14 @@ begin : output_logic_proc
 			WVALID = 1'b1;
 
 			// incrementing WDATA value
-			WDATA  = WDATA_temp + 1'b1;
+			WDATA_temp = WDATA_temp + 1'b1;
 
 			// checking if is_last completes its cycles
 			if(&is_last)
 				WLAST = 1'b1;
+				
+			else
+			    WLAST = 1'b0;
 
 			// incrementing is_last variable
 			is_last = is_last + 1'b1;
@@ -241,10 +263,11 @@ begin : output_logic_proc
 		end
 
 		default :
-		{BREADY, AWVALID, WVALID} = 3'b0;
+		{BREADY, AWVALID, WVALID, WDATA_temp} = 0;
 	endcase
 
 end: output_logic_proc
 
+assign WDATA = WDATA_temp;
 
 endmodule : axi_master

@@ -37,5 +37,10 @@ interface axi_wr_chnl;
 	logic                       BREADY;
 	logic [`RESPONSE_WIDTH-1:0] BRESP;
 
-
+	/////////////////////////////////
+	// I2C signals
+	/////////////////////////////////
+	
+	logic SDA;
+	logic SCL;
 endinterface : axi_wr_chnl

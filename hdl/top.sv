@@ -39,9 +39,10 @@ module top (
 	/////////////////////////////////
 	// Read Data channel signals (R)
 	/////////////////////////////////
-	output logic [`DATA_WIDTH -1:0] RDATA,
-	output wire RVALID,
-	input  wire RREADY,
+	output logic     [`DATA_WIDTH -1:0] RDATA,
+	output logic [`RESPONSE_WIDTH -1:0] RRESP,
+	output  wire RVALID,
+	input   wire RREADY,
 	
 	/////////////////////////////////
 	// I2C signals
@@ -82,6 +83,7 @@ axi_slave u0(
              .RDATA(RDATA),
              .RVALID(RVALID),
              .RREADY(RREADY),
+             .RRESP(RRESP),
              .I2C_MASTER_TRIGGER(wire_i2c_master_trigger),
              .ADDR_DATA_OUT(wire_addr_data_out),
              .VALID_ADDR_DATA_OUT(wire_valid_addr_data_out),

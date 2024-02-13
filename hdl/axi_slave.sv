@@ -54,6 +54,8 @@ module axi_slave (
 	output logic RDATA_VALID_ACK,
 	input  wire [`RDATA_WIDTH -1:0] RDATA_OUT,
 	input  wire RDATA_VALID,
+	
+	output logic I2C_MASTER_TRIGGER,
 
 	input PENDING_TRANSACTION_WR,
 	input PENDING_TRANSACTION_RD

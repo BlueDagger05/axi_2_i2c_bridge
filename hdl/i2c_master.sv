@@ -6,6 +6,7 @@
 module i2c_master (
     input wire ACLK,
     input wire ARESETn,
+    input wire I2C_MASTER_TRIGGER,
 	output logic  VALID_ADDR_DATA_OUT_ACK,
 	output logic  VALID_ADDR_DATA_OUT_ACK_VALID,
 	input   wire [`OUTPUT_ADDR_WIDTH -1:0] ADDR_DATA_OUT,

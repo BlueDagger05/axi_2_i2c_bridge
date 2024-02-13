@@ -60,7 +60,7 @@ wire wire_rdata_valid;
 wire wire_rdata_valid_ack;
 wire wire_pending_transaction_rd;
 wire wire_pending_transaction_wr;
-
+wire wire_i2c_master_trigger;
 // wire wire_sda;
 // wire wire_scl;
 
@@ -82,6 +82,7 @@ axi_slave u0(
              .RDATA(RDATA),
              .RVALID(RVALID),
              .RREADY(RREADY),
+             .I2C_MASTER_TRIGGER(wire_i2c_master_trigger),
              .ADDR_DATA_OUT(wire_addr_data_out),
              .VALID_ADDR_DATA_OUT(wire_valid_addr_data_out),
              .VALID_ADDR_DATA_OUT_ACK(wire_valid_addr_data_out_ack),
@@ -96,6 +97,7 @@ axi_slave u0(
 i2c_master u1(
              .ACLK(ACLK),
              .ARESETn(ARESETn),
+             .I2C_MASTER_TRIGGER(wire_i2c_master_trigger),
              .ADDR_DATA_OUT(wire_addr_data_out),
              .VALID_ADDR_DATA_OUT(wire_valid_addr_data_out),
              .VALID_ADDR_DATA_OUT_ACK(wire_valid_addr_data_out_ack),

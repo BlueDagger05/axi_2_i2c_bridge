@@ -1,42 +1,54 @@
 /////////////////////////////////////////////////////////
 // This interface consists of AXI master write channels
 // AXI write have three sub-channels under write domain
-// Write request, write data, write response respectively
+// Write request; write data; write response respectively
 /////////////////////////////////////////////////////////
 `include "./defines.sv"
 
 interface axi_wr_chnl;
 
+   ////////////////////////////////////
 	// Global clock and active-low reset
-	bit ACLK;
-	bit ARESETn;
+    ////////////////////////////////////
+	logic ACLK;
+	logic ARESETn;
 
-	/////////////////////////////////
+	////////////////////////////////
 	// Write Request channel signals
-	/////////////////////////////////
-	logic AWVALID;
+	////////////////////////////////
 	logic AWREADY;
+	logic AWVALID;
 	logic [`ADDR_WIDTH -1:0] AWADDR;
-	logic [`SIZE  -1:0] 	 AWSIZE;
-	logic [`BURST_SIZE -1:0] AWBURST;
 
-
-	/////////////////////////////////
+	/////////////////////////////
 	// Write Data channel signals
-	/////////////////////////////////
-	logic WVALID;
+	/////////////////////////////
 	logic WREADY;
-	logic WLAST;
-	logic [`WDATA_WIDTH -1:0] WADATA;
-
+	logic WVALID;
+	logic [`DATA_WIDTH -1:0] WDATA;
 
 	/////////////////////////////////
 	// Write Response channel signals
 	/////////////////////////////////
+	logic [`RESPONSE_WIDTH-1:0] BRESP;
 	logic                       BVALID;
 	logic                       BREADY;
-	logic [`RESPONSE_WIDTH-1:0] BRESP;
 
+    /////////////////////////////////
+	// Read Address channel signals (AR)
+	/////////////////////////////////
+	logic ARREADY;
+	logic ARVALID;
+	logic [`ADDR_WIDTH -1:0] ARADDR;
+	
+	/////////////////////////////////
+	// Read Data channel signals (R)
+	/////////////////////////////////
+	logic [`RDATA_WIDTH -1:0] RDATA;
+	logic [`RESPONSE_WIDTH -1:0] RRESP;
+	logic  RVALID;
+	logic RREADY;
+	
 	/////////////////////////////////
 	// I2C signals
 	/////////////////////////////////

@@ -1,5 +1,12 @@
+////////////////////////////////////////
+// Design Name  : AXI4 Lite Slave
+// Module Name  : axi_slave
+// Project Name : AXI4 Lite to I2C Bridge
+// Description  : 
+///////////////////////////////////////
+
 `timescale 1ns/1ps
-`include "./defines.sv"
+`include "./define.sv"
 `ifndef AXI_MASTER
 `define AXI_MASTER
 
@@ -7,81 +14,78 @@ typedef enum bit [1:0] {OKAY, EXOKAY, SLVERR, DECERR} e_resp;
 typedef enum bit {LOW, HIGH} e_bool;
 
 module axi_slave (
-	////////////////////////////////////
-	// Global clock and active-low reset
-    ////////////////////////////////////
+
+	//////////////////////////////////////////////
+	// ++ Global clock and active-low reset ++ //
+    /////////////////////////////////////////////
 	input wire ACLK,
 	input wire ARESETn,
-
-	////////////////////////////////
-	// Write Request channel signals
-	////////////////////////////////
+	
+	////////////////////////////////////////////
+	// ++++++ Write channel signals +++++++ ///
+	///////////////////////////////////////////
+	// Write Address channel signals (AW)
 	output logic AWREADY,
 	input   wire AWVALID,
 	input   wire [`ADDR_WIDTH -1:0] AWADDR,
 
-	/////////////////////////////
-	// Write Data channel signals
-	/////////////////////////////
+	// Write Data channel signals (W)
 	output logic WREADY,
 	input   wire WVALID,
 	input   wire [`DATA_WIDTH -1:0] WDATA,
 
-	/////////////////////////////////
 	// Write Response channel signals
-	/////////////////////////////////
 	output logic [`RESPONSE_WIDTH-1:0] BRESP,
 	output logic                       BVALID,
 	input   wire                       BREADY,
 
-    ////////////////////////////////////
+    ///////////////////////////////////////////
+	// +++++++ Read channel signals +++++++ //
+	//////////////////////////////////////////
 	// Read Address channel signals (AR)
-	////////////////////////////////////
 	output logic ARREADY,
 	input  wire  ARVALID,
 	input  wire [`ADDR_WIDTH -1:0] ARADDR,
 	
-	/////////////////////////////////
 	// Read Data channel signals (R)
-	/////////////////////////////////
-	output logic [`RESPONSE_WIDTH -1:0] RRESP,
+//	output logic [`RESPONSE_WIDTH -1:0] RRESP,
 	output logic [`RDATA_WIDTH -1:0] RDATA,
-	output wire  RVALID,
+	output logic RVALID,
 	input  wire  RREADY,
-
-    /////////////////////////////////////////
+	
+	////////////////////////////////////////////////
+    // ++++ AXI slave to I2C master signals ++++ //
+    //////////////////////////////////////////////
     // AXI slave to I2C master Write signals
-    /////////////////////////////////////////
 	output logic [`OUTPUT_ADDR_WIDTH -1:0] ADDR_DATA_OUT,
 	output logic VALID_ADDR_DATA_OUT,
     input  wire  VALID_ADDR_DATA_OUT_ACK,
     input  wire  VALID_ADDR_DATA_OUT_ACK_VALID,
-    
-    
-    /////////////////////////////////////////
+	
     // AXI slave to I2C master Read signals
-    /////////////////////////////////////////
-	output logic RDATA_VALID_ACK,
-	output logic I2C_MASTER_TRIGGER,
-
-	input  wire [`RDATA_WIDTH -1:0] RDATA_OUT,
+    output logic RDATA_VALID_ACK,
+    output logic I2C_MASTER_TRIGGER,
+ 	input  wire [`RDATA_WIDTH -1:0] RDATA_OUT,
 	input  wire RDATA_VALID,
-
-	input wire PENDING_TRANSACTION_WR,
-	input wire PENDING_TRANSACTION_RD
+    
+    // Pending transaction signal for read and write
+    input wire PENDING_TRANSACTION_WR,
+    input wire PENDING_TRANSACTION_RD
 );
-/////////////////////////////////////////////
-// +++++++++ temporary variables +++++++++ //
-//////////////////////////////////////////////
+
+//////////////////////////////////////////////////
+// +++++++++++ temporary variables +++++++++++ //
+////////////////////////////////////////////////
+//
 reg [3:0] DEVICE_ID = 4'hA;
 
-
-////////////////////////////////////////////
-// +++++++++ reset synchronizer +++++++++ //
-////////////////////////////////////////////
- 
+////////////////////////////////////////////////
+// ++++++++++ reset synchronizer ++++++++++ ///
+//////////////////////////////////////////////
+// temporary signal for reset synchronizer
 reg SYN_RESET;
 reg resetOut;
+
 always_ff @(posedge ACLK, negedge ARESETn)
 begin
 	if(~ARESETn)
@@ -90,11 +94,9 @@ begin
 		{SYN_RESET, resetOut} <= {resetOut, 1'b1};
 end
 
-
-//////////////////////////////////////////
-// +++++++++++++++ CDC ++++++++++++++++ //  
-//////////////////////////////////////////
-
+/////////////////////////////////////////////////
+// +++++++++++++ CDC for write ++++++++++++++ //  
+///////////////////////////////////////////////
 
 ////// VALID_ADDR_DATA_OUT_ACK, VALID_ADDR_DATA_OUT_ACK_VALID //////
 reg SYN_VALID_ADDR_DATA_OUT_ACK, SYN_VALID_ADDR_DATA_OUT_ACK_S1;
@@ -171,13 +173,11 @@ begin
    begin
       P2L_PENDING_TRANSACTION_WR <= (P2L_PENDING_TRANSACTION_WR ^ PENDING_TRANSACTION_WR_S2);
    end
-
-
 end
+
 ///////////////////////////////////////////////////////
 // ++++++++++++++ Write Channel ++++++++++++++++++++ //
 ///////////////////////////////////////////////////////
-
 
 ////////////////////////////////////
 // Write Address Channel FSM
@@ -516,7 +516,264 @@ begin : B_output_logic_proc
 		
 	end
 
-end : B_output_logic_proc
+end
 
-endmodule : axi_slave
+////////////////////////////////////////////////////////
+// ++++++++++++++++++++++++++++++++++++++++++++++++ ///
+// ++++++++++++++ Read Channel ++++++++++++++++++++ //
+// ++++++++++++++++++++++++++++++++++++++++++++++++ /
+////////////////////////////////////////////////////
+
+// for read channel memory signals
+reg [31:0] ARADDR_reg;
+
+/////////////////////////////////////////////////
+// +++++++++++++ CDC for write ++++++++++++++ //  
+///////////////////////////////////////////////
+
+// temporary signals for double stage synchronized
+// Synchronized signals_1
+reg [`RDATA_WIDTH -1:0] SYN_RDATA_OUT_1;
+reg SYN_RDATA_VALID_1;
+reg SYN_PENDING_TRANSACTION_RD_1;
+
+// Synchronized signals_2
+reg [`RDATA_WIDTH -1:0] SYN_RDATA_OUT_2;
+reg SYN_RDATA_VALID_2;
+reg SYN_PENDING_TRANSACTION_RD_2;
+
+// Reset synchronizers (double stage)
+always_ff @(posedge ACLK, negedge ARESETn) begin
+    if (~ARESETn) 
+    begin
+        {SYN_RDATA_OUT_1, SYN_RDATA_VALID_1, SYN_PENDING_TRANSACTION_RD_1} <= 36'b0; // Reset all registers
+        {SYN_RDATA_OUT_2, SYN_RDATA_VALID_2, SYN_PENDING_TRANSACTION_RD_2} <= 36'b0; // Reset all registers
+    end 
+    else 
+    begin
+        {SYN_RDATA_OUT_1, SYN_RDATA_VALID_1, SYN_PENDING_TRANSACTION_RD_1} <= {RDATA_OUT, RDATA_VALID, PENDING_TRANSACTION_RD}; // Shift values
+        {SYN_RDATA_OUT_2, SYN_RDATA_VALID_2, SYN_PENDING_TRANSACTION_RD_2} <= {SYN_RDATA_OUT_1, SYN_RDATA_VALID_1, SYN_PENDING_TRANSACTION_RD_1}; // Shift values
+    end
+end
+
+// level to pulse conversion
+// temporary signal for level to pulse conversion
+reg [`RDATA_WIDTH -1:0] P2L_RDATA_OUT;
+reg P2L_RDATA_VALID;
+reg P2L_PENDING_TRANSACTION_RD;
+
+always_ff @(posedge ACLK or negedge SYN_RESET)
+begin
+    if(~SYN_RESET)
+    begin
+        {P2L_RDATA_OUT, P2L_RDATA_VALID, P2L_PENDING_TRANSACTION_RD} <= 0;    
+    end
+    else
+    begin
+        P2L_RDATA_OUT              <=(P2L_RDATA_OUT ^ SYN_RDATA_OUT_2); 
+        P2L_RDATA_VALID            <=(P2L_RDATA_VALID ^ SYN_RDATA_VALID_2); 
+        P2L_PENDING_TRANSACTION_RD <= (P2L_PENDING_TRANSACTION_RD ^ SYN_PENDING_TRANSACTION_RD_2);
+    end
+end
+
+
+/////////////////////////////////////////////////
+// +++++++++++ Read Address Channel +++++++++ //
+///////////////////////////////////////////////
+
+// Variables for read address channel
+parameter [1:0] AR_IDLE_S =2'B00;
+parameter [1:0] AR_READY_S =2'B01;
+
+// temporary signal for read address channel
+reg       [1:0] ARState_S;
+reg       [1:0] ARNext_State_S;
+
+// Sequential Block for read address channel
+always@(posedge ACLK or negedge SYN_RESET)
+begin
+    if(!SYN_RESET)
+        ARState_S <= AR_IDLE_S;
+	else
+		ARState_S <= ARNext_State_S;
+end
+
+// Next Stage Determining for read address channel
+always@*
+begin
+    case(ARState_S)
+    AR_IDLE_S :  
+                if(ARVALID)
+                    ARNext_State_S = AR_READY_S;
+				else
+				    ARNext_State_S = AR_IDLE_S;
+
+	AR_READY_S:	ARNext_State_S = AR_IDLE_S;
+										
+	default   :	ARNext_State_S = AR_IDLE_S;
+    
+    endcase // ARState_S
+end
+
+// Output Determining for read address channel
+always@(posedge ACLK or negedge SYN_RESET)
+begin
+    if(!SYN_RESET)						
+        ARREADY <= 1'B0;
+	else
+	   case(ARNext_State_S)
+           AR_IDLE_S  : ARREADY <= 1'B0;
+           
+           AR_READY_S : begin	
+                            ARREADY <= 1'B1;
+                            I2C_MASTER_TRIGGER <= 1'B1; 
+						
+						  if(ARADDR == 16'h1234)
+						  begin
+						      ARADDR_reg <= ARADDR;
+						  end
+						end
+						
+		   default    :	ARREADY <= 1'B0;
+											
+		endcase // ARNext_State_S
+end
+
+/////////////////////////////////////////////
+// ++++++++++ Read Data Channel +++++++++ //
+///////////////////////////////////////////
+
+// Variables for read data channel
+parameter [1:0] R_IDLE_S  = 2'B00;
+parameter [1:0] R_START_S = 2'B01;
+parameter [1:0] R_VALID_S = 2'B10;
+
+// temporary for read data channel
+reg            [1:0] RState_S;
+reg            [1:0] RNext_state_S;
+
+// Sequential Block for read data channel
+always@(posedge ACLK or negedge SYN_RESET)
+begin
+    if(!SYN_RESET)
+        RState_S <= R_IDLE_S;
+    else
+    	RState_S <= RNext_state_S;
+ end
+ 
+// Next Stage Determining for read data channel								
+always@*
+begin
+    case(RState_S)
+        R_IDLE_S  :  if(ARREADY)	
+                        RNext_state_S <= R_START_S;
+				     else			
+				        RNext_state_S <= R_IDLE_S;
+				        
+	    R_START_S :  RNext_state_S    <= R_VALID_S;	
+	    
+	    R_VALID_S :  if(RREADY)		
+	                   RNext_state_S  <= R_IDLE_S;
+					 else			
+					   RNext_state_S  <= R_VALID_S;
+					   
+        default   :  RNext_state_S    <= R_IDLE_S;
+												
+    endcase // RState_S
+end
+
+// Output Determining for read address channel
+always@(posedge ACLK or negedge SYN_RESET)
+begin
+    if(!SYN_RESET)					
+        RVALID   <=  1'B0;
+	else
+		case(RNext_state_S)
+            R_IDLE_S  : RVALID <= 1'B0;
+
+			R_START_S : RVALID <= 1'B0;
+
+		    R_VALID_S :	begin
+		                  RVALID <= 1'B1;
+		                  RDATA  <= RDATA_OUT;
+                        end
+
+            default   : RVALID <= 1'B0;
+        endcase                     
+end
+
+///////////////////////////////////////////////////////
+// +++++++ Read Data I2C to Processor chnnel ++++++ //
+/////////////////////////////////////////////////////
+
+// Variables for read data i2c to processor channel
+parameter [1:0] DR_IDLE_S  = 2'B00;
+parameter [1:0] DR_START_S = 2'B01;
+parameter [1:0] DR_VALID_S = 2'B10;
+
+// temporary for read data i2c to processor channel
+reg            [1:0] DRState_S;
+reg            [1:0] DRNext_state_S;
+
+// Sequential Block  for read data i2c to processor channel
+always@(posedge ACLK or negedge SYN_RESET)
+begin
+    if(!SYN_RESET)
+        DRState_S <= DR_IDLE_S;
+    else
+    	DRState_S <= DRNext_state_S;
+ end
+ 
+
+// Next Stage Determining for read data i2c to processor channel								
+always@*
+begin
+    case(DRState_S)
+        DR_IDLE_S  :  if(P2L_RDATA_VALID)	
+                        DRNext_state_S <= DR_START_S;
+				      else			
+				        DRNext_state_S <= DR_IDLE_S;
+				        
+	    DR_START_S :  DRNext_state_S    <= DR_VALID_S;	
+	    
+	    DR_VALID_S :  if(!P2L_PENDING_TRANSACTION_RD)		
+	                   DRNext_state_S  <= DR_VALID_S;
+					  else			
+					   DRNext_state_S  <= DR_IDLE_S;
+					   
+        default    :  DRNext_state_S    <= DR_IDLE_S;
+												
+    endcase // RState_S
+end
+
+// Output Determining logic for read data i2c to processor channel
+always@(posedge ACLK or negedge SYN_RESET)
+begin
+    if(!SYN_RESET)
+    begin					
+        RDATA_VALID_ACK   <=  1'B0;
+        I2C_MASTER_TRIGGER <= 1'B0;
+    end
+	else
+		case(DRNext_state_S)
+            DR_IDLE_S  : begin
+                            RDATA_VALID_ACK <= 1'B0;
+                            I2C_MASTER_TRIGGER <= 1'B0;
+                         end
+
+			DR_START_S : begin
+			                 RDATA_VALID_ACK    <= 1 ^ RDATA_VALID_ACK;
+			                 I2C_MASTER_TRIGGER <= 1'B0;
+			             end
+
+		    DR_VALID_S : begin
+			                 I2C_MASTER_TRIGGER <= 1 ^ I2C_MASTER_TRIGGER;
+		                     RDATA              <= P2L_RDATA_OUT; 
+                         end
+
+            default   : RVALID <= 1'B0;
+        endcase                     
+end
+
+endmodule: axi_slave
 `endif

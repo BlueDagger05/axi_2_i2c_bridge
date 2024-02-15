@@ -4,7 +4,7 @@ module top (
 
    ////////////////////////////////////
 	// Global clock and active-low reset
-   ////////////////////////////////////
+    ////////////////////////////////////
 	input wire ACLK,
 	input wire ARESETn,
 
@@ -39,7 +39,7 @@ module top (
 	/////////////////////////////////
 	// Read Data channel signals (R)
 	/////////////////////////////////
-	output logic    [`RDATA_WIDTH -1:0] RDATA,
+	output logic     [`RDATA_WIDTH -1:0] RDATA,
 	output logic [`RESPONSE_WIDTH -1:0] RRESP,
 	output  wire RVALID,
 	input   wire RREADY,

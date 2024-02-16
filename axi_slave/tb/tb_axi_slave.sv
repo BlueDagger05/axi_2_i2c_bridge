@@ -138,7 +138,7 @@ join
 
 task write_addrress();
 begin
-   #10 AWADDR = 32'h1233_0002;
+   #10 AWADDR = 32'h1234_0001;
        AWVALID = 1;
 
    #20 AWVALID = 0;
@@ -228,27 +228,89 @@ endtask : i2c_handshake
 
 task read_address();
 begin
-    #10 ARADDR  = 32'h0000_0dad;
-    #90 ARVALID = 1;
-    #50 ARVALID = 0;
-        
-end
+#10 ARADDR = 32'h0000_0002;
+       ARVALID = 1;
+
+   #20 ARVALID = 0;
+   
+   repeat(5) @(posedge ACLK);
+   
+   #10 ARADDR = 32'h0000_AA1D;
+       ARVALID = 1;
+
+   #20 ARVALID = 0;
+   
+   repeat(5) @(posedge ACLK);
+   
+   #10 ARADDR = 32'h0000_0001;
+       ARVALID = 1;
+
+   #20 ARVALID = 0;
+   
+   repeat(5) @(posedge ACLK);
+   #10 ARADDR = 32'h0000_0002;
+       ARVALID = 1;
+
+   #20 ARVALID = 0;
+   repeat(5) @(posedge ACLK);
+ end  
 endtask
 
 task read_data();
 begin
-    #20 RDATA_OUT = 32'h0000_0A0A;
-    #90 RREADY    = 1; 
-    #70 RREADY    = 0;     
+
+#40 RDATA_OUT = 32'hA;
+       RREADY = 1;
+
+   #20 RREADY = 0;   
+   repeat(5) @(posedge ACLK);
+     
+   
+    #40 RDATA_OUT = 32'hB;
+       RREADY = 1;
+
+   #20 RREADY = 0;
+   repeat(5) @(posedge ACLK);
+   
+    #40 RDATA_OUT = 32'hC;
+        RREADY = 1;
+
+   #20 RREADY = 0;
+   repeat(5) @(posedge ACLK);       
+   
+   
+    #40 RDATA_OUT = 32'hA;
+       RREADY = 1; 
+       
+
+   #20 RREADY = 0;
+   repeat(5) @(posedge ACLK);
+   
+    #40 RDATA_OUT = 32'hB;
+       RREADY = 1;
+
+   #20 RREADY = 0;
+   repeat(5) @(posedge ACLK);
+
 end
 endtask
 
 task read_actual_data();
 begin
-    #20 PENDING_TRANSACTION_RD = 0;
-    #90 RDATA_VALID            = 1;
-    #70 RDATA_VALID            = 0; 
-    #20 PENDING_TRANSACTION_RD = 1;
+    PENDING_TRANSACTION_RD = 0;
+    RDATA_VALID            = 0;
+    RDATA_VALID            = 0; 
+ 
+#50   
+    PENDING_TRANSACTION_RD = 1;
+    RDATA_VALID            = 1;
+    RDATA_VALID            = 1; 
+    
+#300   
+    PENDING_TRANSACTION_RD = 0;
+    RDATA_VALID            = 0;
+    RDATA_VALID            = 0;     
+
 end
 endtask
 

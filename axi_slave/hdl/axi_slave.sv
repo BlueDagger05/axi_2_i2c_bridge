@@ -266,13 +266,11 @@ begin : AW_output_logic
 
 			end
 
-			AW_READY_S:
-			begin
-			AWREADY <= 1'b0;
-		    end
+			AW_READY_S: begin
+			                 AWREADY <= 1'b0;
+		                end
 
-			default: 
-			AWREADY <= 1'b0;
+			default: AWREADY <= 1'b0;
 
 		endcase // AW_next_state
 		
@@ -389,15 +387,19 @@ end : W_combination_logic_proc
 			 	     if(AWADDR_reg[31:16] == 16'h1234)
 			 	     begin
 			 	     	// Sending valid data to I2C channel 
-			 	     	{ADDR_DATA_OUT[19:16], ADDR_DATA_OUT[15:8], ADDR_DATA_OUT[7:0]} <= {DEVICE_ID, AWADDR_reg[6:0], WDATA[7:0]};
-			 	     	P2L_VALID_ADDR_DATA_OUT <= 1'b1 ^ P2L_VALID_ADDR_DATA_OUT;
-			 	     end
+			 	     	if(ADDR_DATA_OUT[15:7] == (7'b000_0001 | 7'b000_0010 | 7'b000_0011))
+			 	     	begin
+			 	     	    {ADDR_DATA_OUT[23:16], ADDR_DATA_OUT[15:8], ADDR_DATA_OUT[7:0] } <= {AWADDR_reg[15:8], AWADDR_reg[7:0], WDATA[7:0]};
+			 	     	    P2L_VALID_ADDR_DATA_OUT <= 1'b1 ^ P2L_VALID_ADDR_DATA_OUT;
+			 	     	end
 
 			 	     else
 			 	     begin
-			 	     	{ADDR_DATA_OUT[19:16], ADDR_DATA_OUT[15:8], ADDR_DATA_OUT[7:0]} <= {DEVICE_ID, AWADDR_reg[6:0], WDATA[7:0]};
+		 	     	    {ADDR_DATA_OUT[23:16], ADDR_DATA_OUT[15:8], ADDR_DATA_OUT[7:0] } <= {AWADDR_reg[15:8], AWADDR_reg[7:0], WDATA[7:0]};
+
 			 	     	P2L_VALID_ADDR_DATA_OUT <= 1'b0 ^ P2L_VALID_ADDR_DATA_OUT;
 			 	     end
+				end
 				end
 
 
@@ -528,17 +530,15 @@ end
 reg [31:0] ARADDR_reg;
 
 /////////////////////////////////////////////////
-// +++++++++++++ CDC for write ++++++++++++++ //  
+// +++++++++++++ CDC for read ++++++++++++++ //  
 ///////////////////////////////////////////////
 
 // temporary signals for double stage synchronized
 // Synchronized signals_1
-reg [`RDATA_WIDTH -1:0] SYN_RDATA_OUT_1;
 reg SYN_RDATA_VALID_1;
 reg SYN_PENDING_TRANSACTION_RD_1;
 
 // Synchronized signals_2
-reg [`RDATA_WIDTH -1:0] SYN_RDATA_OUT_2;
 reg SYN_RDATA_VALID_2;
 reg SYN_PENDING_TRANSACTION_RD_2;
 
@@ -546,19 +546,18 @@ reg SYN_PENDING_TRANSACTION_RD_2;
 always_ff @(posedge ACLK, negedge ARESETn) begin
     if (~ARESETn) 
     begin
-        {SYN_RDATA_OUT_1, SYN_RDATA_VALID_1, SYN_PENDING_TRANSACTION_RD_1} <= 36'b0; // Reset all registers
-        {SYN_RDATA_OUT_2, SYN_RDATA_VALID_2, SYN_PENDING_TRANSACTION_RD_2} <= 36'b0; // Reset all registers
+        {SYN_RDATA_VALID_1, SYN_RDATA_VALID_2}                       <= 0; // Reset all registers
+        {SYN_PENDING_TRANSACTION_RD_1, SYN_PENDING_TRANSACTION_RD_2} <= 0; // Reset all registers
     end 
     else 
     begin
-        {SYN_RDATA_OUT_1, SYN_RDATA_VALID_1, SYN_PENDING_TRANSACTION_RD_1} <= {RDATA_OUT, RDATA_VALID, PENDING_TRANSACTION_RD}; // Shift values
-        {SYN_RDATA_OUT_2, SYN_RDATA_VALID_2, SYN_PENDING_TRANSACTION_RD_2} <= {SYN_RDATA_OUT_1, SYN_RDATA_VALID_1, SYN_PENDING_TRANSACTION_RD_1}; // Shift values
+        {SYN_RDATA_VALID_1, SYN_RDATA_VALID_2} <= {SYN_RDATA_VALID_2, RDATA_VALID}; // Shift values
+        {SYN_PENDING_TRANSACTION_RD_1, SYN_PENDING_TRANSACTION_RD_2} <= {SYN_PENDING_TRANSACTION_RD_2, PENDING_TRANSACTION_RD}; // Shift values
     end
 end
 
 // level to pulse conversion
 // temporary signal for level to pulse conversion
-reg [`RDATA_WIDTH -1:0] P2L_RDATA_OUT;
 reg P2L_RDATA_VALID;
 reg P2L_PENDING_TRANSACTION_RD;
 
@@ -566,16 +565,14 @@ always_ff @(posedge ACLK or negedge SYN_RESET)
 begin
     if(~SYN_RESET)
     begin
-        {P2L_RDATA_OUT, P2L_RDATA_VALID, P2L_PENDING_TRANSACTION_RD} <= 0;    
+        {P2L_RDATA_VALID, P2L_PENDING_TRANSACTION_RD} <= 0;    
     end
     else
     begin
-        P2L_RDATA_OUT              <=(P2L_RDATA_OUT ^ SYN_RDATA_OUT_2); 
-        P2L_RDATA_VALID            <=(P2L_RDATA_VALID ^ SYN_RDATA_VALID_2); 
-        P2L_PENDING_TRANSACTION_RD <= (P2L_PENDING_TRANSACTION_RD ^ SYN_PENDING_TRANSACTION_RD_2);
+        P2L_RDATA_VALID            <= (P2L_RDATA_VALID ^ SYN_RDATA_VALID_1); 
+        P2L_PENDING_TRANSACTION_RD <= (P2L_PENDING_TRANSACTION_RD ^ SYN_PENDING_TRANSACTION_RD_1);
     end
 end
-
 
 /////////////////////////////////////////////////
 // +++++++++++ Read Address Channel +++++++++ //
@@ -703,7 +700,7 @@ begin
 end
 
 ///////////////////////////////////////////////////////
-// +++++++ Read Data I2C to Processor chnnel ++++++ //
+// +++++++ Read Data I2C to Processor channel ++++++ //
 /////////////////////////////////////////////////////
 
 // Variables for read data i2c to processor channel
@@ -734,14 +731,14 @@ begin
 				      else			
 				        DRNext_state_S <= DR_IDLE_S;
 				        
-	    DR_START_S :  DRNext_state_S    <= DR_VALID_S;	
+	    DR_START_S :  DRNext_state_S   <= DR_VALID_S;	
 	    
 	    DR_VALID_S :  if(!P2L_PENDING_TRANSACTION_RD)		
 	                   DRNext_state_S  <= DR_VALID_S;
 					  else			
 					   DRNext_state_S  <= DR_IDLE_S;
 					   
-        default    :  DRNext_state_S    <= DR_IDLE_S;
+        default    :  DRNext_state_S   <= DR_IDLE_S;
 												
     endcase // RState_S
 end
@@ -751,27 +748,40 @@ always@(posedge ACLK or negedge SYN_RESET)
 begin
     if(!SYN_RESET)
     begin					
-        RDATA_VALID_ACK   <=  1'B0;
-        I2C_MASTER_TRIGGER <= 1'B0;
+        RDATA_VALID_ACK                         <=  1'B0;
+        I2C_MASTER_TRIGGER                      <= 1'B0;
     end
 	else
 		case(DRNext_state_S)
             DR_IDLE_S  : begin
-                            RDATA_VALID_ACK <= 1'B0;
-                            I2C_MASTER_TRIGGER <= 1'B0;
+                            RDATA_VALID_ACK     <= 1'B0;
+                            I2C_MASTER_TRIGGER  <= 1'B0;
                          end
 
 			DR_START_S : begin
-			                 RDATA_VALID_ACK    <= 1 ^ RDATA_VALID_ACK;
-			                 I2C_MASTER_TRIGGER <= 1'B0;
+			                 I2C_MASTER_TRIGGER <= 1 ^ I2C_MASTER_TRIGGER;
 			             end
 
 		    DR_VALID_S : begin
-			                 I2C_MASTER_TRIGGER <= 1 ^ I2C_MASTER_TRIGGER;
-		                     RDATA              <= P2L_RDATA_OUT; 
-                         end
+			                 RDATA_VALID_ACK    <= 1 ^ RDATA_VALID_ACK;
+		                     RDATA              <= RDATA_OUT;
+		                     
+		                     if(ARADDR_reg[31:16] == 16'h1234)
+			 	             begin
+			 	     	         if(RDATA[15:7] == (7'b000_0001 | 7'b000_0010 | 7'b000_0011))
+			 	     	             begin
+			 	     	                 {RDATA[23:16], RDATA[15:8], RDATA[7:0] } <= {ARADDR_reg[15:8], ARADDR_reg[7:0], RDATA_OUT[7:0]};
+			 	     	                 RDATA_VALID_ACK <= 1'b1 ^ RDATA_VALID_ACK;
+			 	     	             end
+                                     else
+			 	                     begin
+		 	     	                      {RDATA[23:16], RDATA[15:8], RDATA[7:0] } <= {ARADDR_reg[15:8], ARADDR_reg[7:0], RDATA_OUT[7:0]};
+                                           RDATA_VALID_ACK <= 1'b1 ^ RDATA_VALID_ACK;
+			 	                     end
+				             end
+		                 end
 
-            default   : RVALID <= 1'B0;
+            default   : RVALID                  <= 1'B0;
         endcase                     
 end
 

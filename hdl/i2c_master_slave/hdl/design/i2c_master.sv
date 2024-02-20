@@ -2,35 +2,34 @@
 
 
 module i2c_master(
-// AXI signals
-   input wire [23:0] addr_data_out,
-   input wire valid_addr_data_out,
-   
-   input wire  I2C_trigger,
-   
-   output logic valid_data_ack,
-   output logic valid_data_ack_valid,
-   
-   output logic [7:0] rdata_out,
-   output logic       rdata_out_valid,
-   output logic PENDING_WR,
-   output logic PENDING_RD,
-   
-// I2C signals
+// Global Signals 
    input wire clk,
    input wire resetn,
    
+// From AXI 
+   input wire I2C_trigger,
+   input wire [23:0] addr_data_out,
+   input wire valid_addr_data_out,
+   input  wire rdata_out_valid_ack,
+   
+// Towards AXI
+   output logic [7:0] rdata_out,
+   output logic       rdata_out_valid,  
+   output logic valid_data_ack,
+   output logic valid_data_ack_valid,
+   output logic PENDING_WR,
+   output logic PENDING_RD,
+
+   
+   // From I2C Slave 
    input  wire m_sda_i,
    output logic m_sda_o,
    
-   // To I2C slave
+   // Towards I2C slave
    output scl_o,
    output logic busy,
    output logic ack_err,
-   output logic done,
-   
-   output logic slave_handshake,
-   output logic [9:0] sync_count
+   output logic done
 );
 
 // temporary variable for master scl and sda 
@@ -49,6 +48,9 @@ reg [1:0] pulse;
 
 // count integer
 int count;
+
+reg [9:0] sync_count;
+reg slave_handshake;
 
 always_ff @(posedge clk)
 begin

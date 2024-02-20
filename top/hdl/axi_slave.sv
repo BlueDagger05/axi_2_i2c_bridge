@@ -48,7 +48,7 @@ module axi_slave (
 	input  wire [`ADDR_WIDTH -1:0] ARADDR,
 	
 	// Read Data channel signals (R)
-	output logic [`RESPONSE_WIDTH -1:0] RRESP,
+//	output logic [`RESPONSE_WIDTH -1:0] RRESP,
 	output logic [`RDATA_WIDTH -1:0] RDATA,
 	output logic RVALID,
 	input  wire  RREADY,
@@ -682,31 +682,20 @@ end
 // Output Determining for read address channel
 always@(posedge ACLK or negedge SYN_RESET)
 begin
-    if(!SYN_RESET)
-    begin					
+    if(!SYN_RESET)					
         RVALID   <=  1'B0;
-        RRESP    <=  2'b00;  // ok
-    end
 	else
 		case(RNext_state_S)
-            R_IDLE_S  : begin
-                            RVALID <= 1'B0;
-                            RRESP  <= 2'b00;
-                        end
+            R_IDLE_S  : RVALID <= 1'B0;
 
-			R_START_S : begin
-                            RVALID <= 1'B0;
-                            RRESP  <= 2'b00;
-                        end
+			R_START_S : RVALID <= 1'B0;
+
 		    R_VALID_S :	begin
 		                  RVALID <= 1'B1;
 		                  RDATA  <= RDATA_OUT;
                         end
 
-            default   : begin
-                            RVALID <= 1'B0;
-                            RRESP  <= 2'b00;
-                        end
+            default   : RVALID <= 1'B0;
         endcase                     
 end
 
@@ -777,20 +766,19 @@ begin
 			                 RDATA_VALID_ACK    <= 1 ^ RDATA_VALID_ACK;
 		                     RDATA              <= RDATA_OUT;
 		                     
-//		                     if(ARADDR_reg[31:16] == 16'h1234)
-//			 	             begin
-//			 	     	         if(RDATA[15:7] == (7'b000_0001 | 7'b000_0010 | 7'b000_0011))
-//			 	     	             begin
-//			 	     	                 RDATA[7:0] <= RDATA_OUT;
-////			 	     	                 {RDATA[23:16], RDATA[15:8], RDATA[7:0] } <= {ARADDR_reg[15:8], ARADDR_reg[7:0], RDATA_OUT[7:0]};
-//			 	     	                 RDATA_VALID_ACK <= 1'b1 ^ RDATA_VALID_ACK;
-//			 	     	             end
-//                                     else
-//			 	                     begin
-//		 	     	                      {RDATA[23:16], RDATA[15:8], RDATA[7:0] } <= {ARADDR_reg[15:8], ARADDR_reg[7:0], RDATA_OUT[7:0]};
-//                                           RDATA_VALID_ACK <= 1'b1 ^ RDATA_VALID_ACK;
-//			 	                     end
-//				             end
+		                     if(ARADDR_reg[31:16] == 16'h1234)
+			 	             begin
+			 	     	         if(RDATA[15:7] == (7'b000_0001 | 7'b000_0010 | 7'b000_0011))
+			 	     	             begin
+			 	     	                 {RDATA[23:16], RDATA[15:8], RDATA[7:0] } <= {ARADDR_reg[15:8], ARADDR_reg[7:0], RDATA_OUT[7:0]};
+			 	     	                 RDATA_VALID_ACK <= 1'b1 ^ RDATA_VALID_ACK;
+			 	     	             end
+                                     else
+			 	                     begin
+		 	     	                      {RDATA[23:16], RDATA[15:8], RDATA[7:0] } <= {ARADDR_reg[15:8], ARADDR_reg[7:0], RDATA_OUT[7:0]};
+                                           RDATA_VALID_ACK <= 1'b1 ^ RDATA_VALID_ACK;
+			 	                     end
+				             end
 		                 end
 
             default   : RVALID                  <= 1'B0;

@@ -27,19 +27,22 @@ module i2c_master(
    output scl_o,
    output logic busy,
    output logic ack_err,
-   output logic done
+   output logic done,
+   
+   output logic slave_handshake,
+   output logic [9:0] sync_count
 );
 
 // temporary variable for master scl and sda 
 reg m_scl_t = 0;
 reg m_sda_t = 0;
 
-parameter sys_freq = 200000000; // 200 MHz
-parameter i2c_freq = 100000; // 100 KHz 
+parameter sys_freq = 100000000; // 100 MHz
+parameter i2c_freq = 5000000; // 5 MHz 
 
 
-parameter clk_count4 = (sys_freq/i2c_freq); //2000
-parameter clk_count1 = clk_count4/4;        //500
+parameter clk_count4 = (sys_freq/i2c_freq);  //20
+parameter clk_count1 = clk_count4/4;          //4
 
 // assign unique value to the transition of the pulse
 reg [1:0] pulse;
@@ -61,28 +64,29 @@ begin
        count <= 0;
     end
     
-    // counts till 0 to 499
+    // counts till 0 to 4
     else if(count == clk_count1 -1)
     begin
         pulse <= 1;
         count <= count + 1;
     end
        
-    // counts till 500 to 999   
-   else if(count == 2*clk_count1 -1)
+    // counts till 5 to 9
+   else if(count == clk_count1*2 -1)
    begin
       pulse <= 2;
       count <= count + 1;
    
    end
    
-   // counts till 1000 to 1499
-   else if(count == 3*clk_count1 -1)
+   // counts till 10 to 14
+   else if(count == clk_count1*3 -1)
    begin
       pulse <= 3;
       count <= count + 1;
    end
    
+   // counts till 14 to 19
    else if(count  == clk_count1*4 - 1)
    begin
        pulse <= 0;
@@ -120,47 +124,95 @@ reg [7:0] readReg = 8'hAB;
 int i =0 , j =0;
 
 // storing addr_data_out reg contents
+//always_ff @(posedge clk, negedge resetn)
+//begin
+//  if(~resetn)
+//  begin
+//    countIn <= 0;
+//  end
+  
+//  else
+//  begin
+//    if(valid_addr_data_out)
+//    begin  // {
+    
+//      // for valid data, incrementing the count
+//      countIn <= countIn + 1;
+
+//      if(countIn < 7)
+//      begin
+//        devIDReg[countIn] <= addr_data_out[countIn];
+//        valid_data_ack <= (countIn == 1) ? 1 :0;
+//      end  
+        
+//      else if(countIn == 7)
+//          is_WrRd <= addr_data_out[countIn];
+        
+//      else if (countIn >7 && countIn <= 15)
+//      begin
+//        addrReg[i] <= addr_data_out[countIn];
+//        i <= i+1;
+//      end    
+        
+//      else if(countIn >15 && countIn <=23)
+//      begin
+//        dataReg[j] <= addr_data_out[countIn];
+//        valid_data_ack_valid = (countIn == 23) ? 1:0;
+//        j <= j+1;
+//      end    
+      
+//      end   
+////        countIn <= 0;
+//    end  // }
+
+//end
+
 always_ff @(posedge clk, negedge resetn)
 begin
   if(~resetn)
   begin
-    countIn <= 0;
+    devIDReg    <= 0;
+    valid_data_ack    <= 0;
+    is_WrRd    <= 0;
+    addrReg    <= 0;
+    dataReg    <= 0;
+    valid_data_ack_valid    <= 0;
   end
-  
-  else
+  else if(I2C_trigger == 1)
   begin
-    if(valid_addr_data_out)
-    begin  // {
-    
-      // for valid data, incrementing the count
-      countIn <= countIn + 1;
-
-      if(countIn < 7)
-      begin
-        devIDReg[countIn] <= addr_data_out[countIn];
-        valid_data_ack = (countIn == 1) ? 1 :0;
-      end  
-        
-      else if(countIn == 7)
-          is_WrRd <= addr_data_out[countIn];
-        
-      else if (countIn >7 && countIn <= 15)
-      begin
-        addrReg[i] <= addr_data_out[countIn];
-        i = i+1;
-      end    
-        
-      else if(countIn >15 && countIn <=23)
-      begin
-        dataReg[j] <= addr_data_out[countIn];
-        valid_data_ack_valid = (countIn == 23) ? 1:0;
-        j = j+1;
-      end    
-      
-      end   
-//        countIn <= 0;
-    end  // }
-
+    devIDReg    <= {
+        addr_data_out[0],
+        addr_data_out[1],
+        addr_data_out[2],
+        addr_data_out[3],
+        addr_data_out[4],
+        addr_data_out[5],
+        addr_data_out[6]
+    };
+    valid_data_ack    <= 1;
+    is_WrRd    <= addr_data_out[7];
+    addrReg    <= {
+        addr_data_out[15],
+        addr_data_out[14],
+        addr_data_out[13],
+        addr_data_out[12],
+        addr_data_out[11],
+        addr_data_out[10],
+        addr_data_out[9],
+        addr_data_out[8]
+    };
+    dataReg    <= {
+        addr_data_out[23],
+        addr_data_out[22],
+        addr_data_out[21],
+        addr_data_out[20],
+        addr_data_out[19],
+        addr_data_out[18],
+        addr_data_out[17],
+        addr_data_out[16]
+    };
+    valid_data_ack_valid    <= 1;
+  end
 end
 
 //////////////////////////
@@ -189,10 +241,10 @@ typedef enum logic [3:0] {IDLE, START, SLV_ADDR, ACK1_SLV, WRITE_ADDR, ACK2_SLV,
 //parameter [3:0] MASTER_ACK =  4'b1010;
 
 // default value for state, as IDLE
-reg [3:0] state = IDLE;
+e_state state = IDLE;
 
 
-reg [3:0] prev_state = IDLE;
+e_state prev_state = IDLE;
 
 
 // write or read operation
@@ -234,10 +286,11 @@ begin // {
          busy    <= 1'b0;
          ack_err <= 1'b0;
          done    <= 1'b0;
+         slave_handshake <=0;
       end  // }
       
    // start opertaion when Trigger occurs   
-   else if(I2C_trigger)
+   else
    begin // {
    case(state) // {
    
@@ -246,7 +299,8 @@ begin // {
        begin // {
           done <= 1'b0;
           newData = 1; // temporary
-          if(newData == 1'b1)
+          prev_state <= IDLE;
+          if(I2C_trigger == 1'b1)
           begin
              dataAddrReg <= {addrReg, 1'b0 }; //operation}; // setting it to default write
              sendData    <= dataReg;
@@ -286,7 +340,8 @@ begin // {
                m_scl_t <= 1'b1; m_sda_t <= 1'b1;
             end
          2: begin 
-               m_scl_t <= 1'b1; m_sda_t <= 1'b0;
+               m_scl_t <= 1'b1; m_sda_t <= 1'b0;       
+               slave_handshake <= 1; // temporary
             end
             
          3: begin
@@ -295,9 +350,10 @@ begin // {
             
          endcase
          
-         // wait till full i2c clock period, 0 to 1999 
+         // wait till full i2c clock period, 0 to 99 
          if(count == clk_count1*4-1)
          begin
+//             slave_handshake <= 0; // temporary
              state   <= SLV_ADDR;
              m_scl_t <= 1'b0;
          end
@@ -329,7 +385,7 @@ begin // {
               end
               
               else
-                m_sda_t <= (dataCount == 7) ? 1 : devIDReg[6- dataCount]; // write operation
+                m_sda_t <= (dataCount == 7) ? 0 : devIDReg[6- dataCount]; // write operation
             end
             
             2:
@@ -360,7 +416,7 @@ begin // {
          // goto read state if read operation
          else if(prev_state == ACK2_SLV)
          begin
-           state     <= READ_DATA;
+           state     <= ACK1_SLV;
            dataCount <= 0;
          end  
          
@@ -380,25 +436,26 @@ begin // {
             0:
             begin
                m_scl_t <= 0;
-               m_sda_t <= 0;
+               m_sda_t <= 1;
             end
             
             1:
             begin
                m_scl_t <= 0;
-               m_sda_t <= 0;
+               m_sda_t <= 1;
             end
             
             2:
             begin
                m_scl_t <= 1;
-               m_sda_t <= 0;
-               rcv_ack <= 1'b0; //receiving valid acknowledge // m_sda_in;
+               m_sda_t <= 1;
+               rcv_ack <= m_sda_i; //receiving valid acknowledge // m_sda_in;
             end
             
             3:
             begin
               m_scl_t <= 1;
+              m_sda_t <= 1;
             end
          
          endcase // pulse
@@ -407,13 +464,21 @@ begin // {
          // wating for a pulse
          if(count == clk_count1*4 -1)
          begin // {
-            m_sda_t <= 0;
+//            m_sda_t <= 0;
             
             // if correct acknlg recvd, send stop to slave
             if(rcv_ack == 0)
             begin
-              state   <= WRITE_ADDR;
-              ack_err <= 0;
+                if(prev_state == ACK2_SLV)
+                begin
+                    state <= READ_DATA;
+                    ack_err <= 0;
+                end
+                else
+                begin
+                    state   <= WRITE_ADDR;
+                    ack_err <= 0;
+                end
               
             end
             
@@ -501,25 +566,26 @@ begin // {
             0:
             begin
                m_scl_t <= 0;
-               m_sda_t <= 0;
+               m_sda_t <= 1;
             end
             
             1:
             begin
                m_scl_t <= 0;
-               m_sda_t <= 0;
+               m_sda_t <= 1;
             end
             
             2:
             begin
                m_scl_t <= 1;
-               m_sda_t <= 0;
-               rcv_ack <= 1'b0; //receiving valid acknowledge // m_sda_in;
+               m_sda_t <= 1;
+               rcv_ack <= m_sda_i; //receiving valid acknowledge // m_sda_in;
             end
             
             3:
             begin
               m_scl_t <= 1;
+              m_sda_t <= 1;
             end
          
          endcase // pulse
@@ -528,12 +594,12 @@ begin // {
          // wating for a pulse
          if(count == clk_count1*4 -1)
          begin // {
-            m_sda_t <= 0;
+//            m_sda_t <= 0;
             
             // if correct acknlg recvd, send stop to slave
             if(rcv_ack == 0)
             begin
-              if(prev_state == WRITE_DATA)
+              if(prev_state == WRITE_ADDR)
               begin
                  state   <= IDLE;
                  
@@ -545,7 +611,7 @@ begin // {
               else if(is_WrRd)  
               begin
                  prev_state <= ACK2_SLV;
-                 state   <= START;
+                 state   <= STOP;
                  ack_err <= 0;
               end   
               
@@ -633,7 +699,7 @@ begin // {
           // after sending data, need to wait for slave to have acknowledgement
           else
           begin
-            state     <= ACK2_SLV;
+            state     <= ACK3_SLV;
             dataCount <= 0;
           end
        
@@ -655,27 +721,29 @@ begin // {
               0:
               begin
                 m_scl_t <= 0;
-                m_sda_t <= 0;
+                m_sda_t <= 1;
               end
               
               1:
               begin
                 m_scl_t <= 1'b1;
-                m_sda_t <= 1'b0;
+                m_sda_t <= 1'b1;
               end
               
               2:
               begin
                 m_scl_t <= 1'b1;
+                m_sda_t <= 1'b1;
                 
                 // serially recv the data
-//                rx_data[7:0] <= (count == 500) ? {rx_data[6:0], m_sda_i} : rx_data;
-                  rx_data[dataCount] <= readReg[dataCount]; 
+                rx_data[7:0] <= (count == 12) ? {rx_data[6:0], m_sda_i} : rx_data;
+//                  rx_data[dataCount] <= readReg[dataCount]; 
               end
               
               3:
               begin
                 m_scl_t <= 1'b1;
+                m_sda_t <= 1'b1;
               end
               
            endcase // pulse
@@ -688,9 +756,9 @@ begin // {
              dataCount <= dataCount + 1;
            end
            
-           // at 7th clk valid data is present
-           else if(dataCount == 7)
-             validRdata <= 1'b1;
+           // after 7th clk valid data is present
+//           else if(dataCount == 8)
+//             validRdata <= 1'b1;
              
            // stay in same state
            else
@@ -704,6 +772,7 @@ begin // {
          else
          begin
            state     <= MASTER_ACK;
+           validRdata <= 1'b1;
            dataCount <= 0;
          end
        
@@ -723,7 +792,7 @@ begin // {
           
           0:
           begin
-            m_scl_t <= 1'b1;
+            m_scl_t <= 1'b0;
             m_sda_t <= 1'b0;
           end
           
@@ -750,10 +819,20 @@ begin // {
           
           if(count == clk_count1*4 -1)
           begin // {
-            state   <= IDLE;
-            m_scl_t <= 0;
-            busy    <= 1'b0;
-            done    <= 1'b1;
+            if(prev_state == ACK2_SLV)
+            begin
+                state   <= START;
+                m_scl_t <= 0;
+                busy    <= 1'b1;
+                done    <= 1'b0;
+            end
+            else
+            begin
+                state   <= IDLE;
+                m_scl_t <= 0;
+                busy    <= 1'b0;
+                done    <= 1'b1;
+            end
           end  // }
           
           else
@@ -768,25 +847,26 @@ begin // {
             0:
             begin
                m_scl_t <= 0;
-               m_sda_t <= 0;
+               m_sda_t <= 1;
             end
             
             1:
             begin
                m_scl_t <= 0;
-               m_sda_t <= 0;
+               m_sda_t <= 1;
             end
             
             2:
             begin
                m_scl_t <= 1;
-               m_sda_t <= 0;
-               rcv_ack <= 1'b0; //receiving valid acknowledge // m_sda_in;
+               m_sda_t <= 1;
+               rcv_ack <= m_sda_i; //receiving valid acknowledge // m_sda_in;
             end
             
             3:
             begin
               m_scl_t <= 1;
+              m_sda_t <= 1;
             end
          
          endcase // pulse
@@ -794,7 +874,7 @@ begin // {
          // wating for a pulse
          if(count == clk_count1*4 -1)
          begin // {
-            m_sda_t <= 0;
+//            m_sda_t <= 0;
             
             // if correct acknlg recvd, send stop to slave
             if(rcv_ack == 0)
@@ -860,10 +940,11 @@ begin // {
            
          endcase // pulse
          
-         if(clk == clk_count1*4 -1)
+         if(count == clk_count1*4 -1)
          begin
             m_sda_t <= 1'b0;
             state   <= STOP;
+            prev_state <= MASTER_ACK;
          end
          
          else
@@ -890,5 +971,7 @@ assign m_sda_o    = m_sda_t;
 assign scl_o      = m_scl_t;
 assign rdata_out  = rx_data;
 assign rdata_out_valid = validRdata;
+
+assign sync_count = count;
 
 endmodule : i2c_master

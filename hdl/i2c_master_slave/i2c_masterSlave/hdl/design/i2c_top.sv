@@ -3,7 +3,7 @@
 
 module i2c_top( 
    // AXI signals
-   input wire [23:0] addr_data_out,
+   (*mark_debug="true"*)input wire [23:0] addr_data_out,
    input wire valid_addr_data_out,
    
    input wire  I2C_trigger,
@@ -20,9 +20,6 @@ module i2c_top(
    // I2C signals
    input wire clk,
    input wire resetn
-   
-   
-   
    
 );
 

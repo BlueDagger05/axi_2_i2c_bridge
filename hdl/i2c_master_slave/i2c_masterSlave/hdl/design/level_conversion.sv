@@ -204,8 +204,8 @@ i2c_master UUT (
    .PENDING_WR(PENDING_WR_i),
    .PENDING_RD(PENDING_RD_i),
    .scl_o(scl_o),
-   .m_sda_i(s_sda_o),
-   .m_sda_o(s_sda_i),
+//   .m_sda_i(s_sda_o),
+//   .m_sda_o(s_sda_i),
    .rdata_out(rdata_out),
    .ack_err(ack_errm)
 );

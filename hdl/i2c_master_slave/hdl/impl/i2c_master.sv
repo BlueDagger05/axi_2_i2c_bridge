@@ -1,6 +1,5 @@
 `timescale 1ns / 1ps
 
-
 module i2c_master(
 // Global Signals 
    input wire clk,
@@ -26,10 +25,8 @@ module i2c_master(
    output logic m_sda_o,
    
    // Towards I2C slave
-   output scl_o,
-   output logic busy,
-   output logic ack_err,
-   output logic done
+   output scl_o
+
 );
 
 // temporary variable for master scl and sda 
@@ -51,6 +48,12 @@ int count;
 
 reg [9:0] sync_count;
 reg slave_handshake;
+
+// busy, ack_err, done
+logic busy;
+logic ack_err;
+logic done;
+
 
 always_ff @(posedge clk)
 begin
